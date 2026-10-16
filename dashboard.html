@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Household Energy | Insight Dashboard</title>
+<style>
+:root{--ink:#152d3b;--muted:#657786;--paper:#f4f7f9;--card:#fff;--line:#e4ebef;--accent:#187b78;--accent2:#e6a23c}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 Inter,Segoe UI,Arial,sans-serif}
+header{background:linear-gradient(120deg,#102d40,#176d70);color:#fff;padding:28px max(22px,calc((100vw - 1400px)/2));}
+.eyebrow{text-transform:uppercase;letter-spacing:.16em;font-size:11px;opacity:.75;font-weight:700}h1{margin:5px 0;font-size:clamp(26px,3vw,38px)}header p{margin:0;opacity:.82}
+main{max-width:1400px;margin:22px auto;padding:0 22px 40px}.toolbar{display:flex;gap:12px;align-items:end;flex-wrap:wrap;background:#fff;border:1px solid var(--line);padding:15px;border-radius:14px;margin-bottom:16px}
+label{display:flex;flex-direction:column;gap:5px;color:var(--muted);font-size:12px;font-weight:700}select,input{font:inherit;color:var(--ink);background:white;border:1px solid #d5e0e6;border-radius:8px;padding:9px 11px;min-width:140px}
+button{border:0;border-radius:8px;padding:10px 15px;background:var(--accent);color:#fff;font-weight:700;cursor:pointer}button:hover{filter:brightness(.94)}.status{margin-left:auto;color:var(--muted);font-size:12px}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin:16px 0}.kpi,.panel{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 3px 14px #173a4b08}
+.kpi{padding:18px}.kpi .label{font-size:12px;color:var(--muted);font-weight:700}.kpi .value{font-size:clamp(22px,2.2vw,31px);font-weight:800;letter-spacing:-.04em;margin:5px 0}.kpi .note{font-size:12px;color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.panel{padding:18px;min-width:0}.panel h2{font-size:16px;margin:0 0 3px}.panel p{margin:0 0 12px;color:var(--muted);font-size:12px}.chart-wrap{height:280px;position:relative}.wide{grid-column:1/-1}
+.table-wrap{overflow:auto;max-height:370px}table{border-collapse:collapse;width:100%;font-size:13px}th,td{text-align:left;padding:10px;border-bottom:1px solid var(--line);white-space:nowrap}th{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em;background:#f8fafb;position:sticky;top:0}
+footer{color:var(--muted);font-size:12px;padding:18px 0;text-align:center}
+@media(max-width:900px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.grid{grid-template-columns:1fr}.wide{grid-column:auto}.status{width:100%;margin:0}}
+@media(max-width:500px){main{padding:0 12px 25px}.kpis{gap:8px}.kpi{padding:13px}.toolbar>*{width:100%}select,input{width:100%}}
+</style>
+</head>
+<body>
+<header><div class="eyebrow">Energy intelligence · household analytics</div><h1>Consumption, made clear.</h1><p>A focused view of daily electricity use, household differences, temperature and peak-hour demand.</p></header>
+<main>
+<section class="toolbar" aria-label="Dashboard filters">
+<label>From date<input type="date" id="startDate"></label>
+<label>To date<input type="date" id="endDate"></label>
+<label>AC availability<select id="acFilter"><option value="All">All households</option><option value="Yes">Has AC</option><option value="No">No AC</option></select></label>
+<label>Household size<select id="sizeFilter"><option value="All">All sizes</option></select></label>
+<button id="applyBtn">Apply filters</button><button id="resetBtn" style="background:#e9eff2;color:#203b49">Reset</button>
+<div class="status" id="status">Loading dataset…</div>
+</section>
+<section class="kpis">
+<div class="kpi"><div class="label">TOTAL CONSUMPTION</div><div class="value" id="totalKwh">—</div><div class="note">kWh in selected records</div></div>
+<div class="kpi"><div class="label">AVERAGE DAILY USE</div><div class="value" id="avgKwh">—</div><div class="note">kWh per household-day</div></div>
+<div class="kpi"><div class="label">HOUSEHOLDS</div><div class="value" id="households">—</div><div class="note">unique IDs in selection</div></div>
+<div class="kpi"><div class="label">PEAK USAGE SHARE</div><div class="value" id="peakShare">—</div><div class="note">peak-hour kWh ÷ total kWh</div></div>
+</section>
+<section class="grid">
+<article class="panel"><h2>Daily energy trend</h2><p>Total consumption across all selected households</p><div class="chart-wrap"><canvas id="trendChart"></canvas></div></article>
+<article class="panel"><h2>Top 10 households</h2><p>Ranked by total kWh in the selected period</p><div class="chart-wrap"><canvas id="topChart"></canvas></div></article>
+<article class="panel"><h2>Usage by household size</h2><p>Average consumption per household-day</p><div class="chart-wrap"><canvas id="sizeChart"></canvas></div></article>
+<article class="panel"><h2>AC vs. non-AC</h2><p>Average daily and peak-hour usage</p><div class="chart-wrap"><canvas id="acChart"></canvas></div></article>
+<article class="panel"><h2>Temperature and consumption</h2><p>Each point represents a household-day observation</p><div class="chart-wrap"><canvas id="tempChart"></canvas></div></article>
+<article class="panel"><h2>Peak-hour share by AC status</h2><p>Mean share of daily consumption used at peak hours</p><div class="chart-wrap"><canvas id="peakChart"></canvas></div></article>
+<article class="panel wide"><h2>Highest-consuming households</h2><p>Household-level roll-up; totals can reflect different numbers of observed days.</p><div class="table-wrap"><table><thead><tr><th>Household</th><th>Total kWh</th><th>Average daily kWh</th><th>Peak kWh</th><th>Days</th><th>AC</th></tr></thead><tbody id="householdTable"></tbody></table></div></article>
+</section>
+<footer>Built from the supplied household electricity dataset · Descriptive analytics, not causal inference.</footer>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+let rawRows = [], charts = {};
+const fmt = (v,d=1) => Number(v||0).toLocaleString(undefined,{maximumFractionDigits:d,minimumFractionDigits:d});
+const chartDefaults = {responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{usePointStyle:true,boxWidth:8}}}};
+function createChart(id,type,data,options={}) {
+  if(charts[id]) charts[id].destroy();
+  charts[id] = new Chart($(id), {type,data,options:{...chartDefaults,...options}});
+}
+async function loadData(){
+  try{
+    const res=await fetch('/api/data'); if(!res.ok) throw new Error('API request failed');
+    const payload=await res.json(); rawRows=payload.rows;
+    if(!rawRows.length) throw new Error('No rows found in CSV');
+    const dates=rawRows.map(r=>r.Date).filter(Boolean).sort();
+    $('startDate').value=dates[0]; $('endDate').value=dates[dates.length-1];
+    const sizes=[...new Set(rawRows.map(r=>String(r.Household_Size)).filter(x=>x!=='null'&&x!=='nan'))].sort((a,b)=>Number(a)-Number(b));
+    sizes.forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent=s+' people';$('sizeFilter').appendChild(o)});
+    $('status').textContent=`${rawRows.length.toLocaleString()} household-day records loaded`;
+    render();
+  }catch(e){$('status').textContent='Could not load data: '+e.message;}
+}
+function selectedRows(){
+  const start=$('startDate').value,end=$('endDate').value,ac=$('acFilter').value,size=$('sizeFilter').value;
+  return rawRows.filter(r=>(!start||r.Date>=start)&&(!end||r.Date<=end)&&
+    (ac==='All'||r.Has_AC===ac)&&(size==='All'||String(r.Household_Size)===size));
+}
+function group(rows,key,metric,agg='mean'){
+  const map=new Map();
+  rows.forEach(r=>{const k=r[key]??'Unknown',v=Number(r[metric]);if(!Number.isFinite(v))return;
+    if(!map.has(k))map.set(k,[]);map.get(k).push(v)});
+  return [...map.entries()].map(([label,vals])=>({label,value:agg==='sum'?vals.reduce((a,b)=>a+b,0):vals.reduce((a,b)=>a+b,0)/vals.length,count:vals.length}));
+}
+function render(){
+ const rows=selectedRows(); if(!rows.length){$('status').textContent='No records match these filters.';return}
+ const sum=key=>rows.reduce((a,r)=>a+(Number(r[key])||0),0);
+ const total=sum('Energy_Consumption_kWh'),peak=sum('Peak_Hours_Usage_kWh');
+ $('totalKwh').textContent=fmt(total,0);$('avgKwh').textContent=fmt(total/rows.length,2);
+ $('households').textContent=new Set(rows.map(r=>r.Household_ID)).size.toLocaleString();
+ $('peakShare').textContent=fmt(total?peak/total*100:0,1)+'%';
+ $('status').textContent=`Showing ${rows.length.toLocaleString()} records`;
+ const daily=group(rows,'Date','Energy_Consumption_kWh','sum').sort((a,b)=>a.label.localeCompare(b.label));
+ createChart('trendChart','line',{labels:daily.map(x=>x.label),datasets:[{label:'Total kWh',data:daily.map(x=>x.value),borderColor:'#187b78',backgroundColor:'#187b7820',fill:true,tension:.25,pointRadius:0}]},{scales:{y:{beginAtZero:true}}});
+ const householdMap=new Map();rows.forEach(r=>{if(!householdMap.has(r.Household_ID))householdMap.set(r.Household_ID,0);householdMap.set(r.Household_ID,householdMap.get(r.Household_ID)+(Number(r.Energy_Consumption_kWh)||0))});
+ const top=[...householdMap].sort((a,b)=>b[1]-a[1]).slice(0,10).reverse();
+ createChart('topChart','bar',{labels:top.map(x=>x[0]),datasets:[{label:'Total kWh',data:top.map(x=>x[1]),backgroundColor:'#e6a23c'}]},{indexAxis:'y',scales:{x:{beginAtZero:true}}});
+ const sizes=group(rows,'Household_Size','Energy_Consumption_kWh').sort((a,b)=>Number(a.label)-Number(b.label));
+ createChart('sizeChart','bar',{labels:sizes.map(x=>x.label+' people'),datasets:[{label:'Average kWh',data:sizes.map(x=>x.value),backgroundColor:'#4c91a3'}]},{scales:{y:{beginAtZero:true}}});
+ const acLabels=[...new Set(rows.map(r=>r.Has_AC||'Unknown'))].sort();
+ const acMean=(status,metric)=>{const a=rows.filter(r=>(r.Has_AC||'Unknown')===status).map(r=>Number(r[metric])).filter(Number.isFinite);return a.length?a.reduce((x,y)=>x+y,0)/a.length:0};
+ createChart('acChart','bar',{labels:acLabels,datasets:[{label:'Daily kWh',data:acLabels.map(a=>acMean(a,'Energy_Consumption_kWh')),backgroundColor:'#187b78'},{label:'Peak-hour kWh',data:acLabels.map(a=>acMean(a,'Peak_Hours_Usage_kWh')),backgroundColor:'#e6a23c'}]},{scales:{y:{beginAtZero:true}}});
+ const scatter=rows.filter(r=>Number.isFinite(Number(r.Avg_Temperature_C))&&Number.isFinite(Number(r.Energy_Consumption_kWh)));
+ const sample=scatter.length>1800?scatter.filter((r,i)=>i%Math.ceil(scatter.length/1800)===0):scatter;
+ createChart('tempChart','scatter',{datasets:[{label:'Household-day',data:sample.map(r=>({x:Number(r.Avg_Temperature_C),y:Number(r.Energy_Consumption_kWh)})),backgroundColor:'#187b7870',pointRadius:3}]},{scales:{x:{title:{display:true,text:'Temperature (°C)'}},y:{title:{display:true,text:'Consumption (kWh)'},beginAtZero:true}}});
+ const peakByAc=acLabels.map(a=>{const arows=rows.filter(r=>(r.Has_AC||'Unknown')===a);const shares=arows.map(r=>Number(r.Energy_Consumption_kWh)>0?Number(r.Peak_Hours_Usage_kWh)/Number(r.Energy_Consumption_kWh)*100:NaN).filter(Number.isFinite);return shares.length?shares.reduce((x,y)=>x+y,0)/shares.length:0});
+ createChart('peakChart','bar',{labels:acLabels,datasets:[{label:'Mean peak share (%)',data:peakByAc,backgroundColor:'#7b79b8'}]},{scales:{y:{beginAtZero:true,ticks:{callback:v=>v+'%'}}}});
+ const hs=new Map();rows.forEach(r=>{if(!hs.has(r.Household_ID))hs.set(r.Household_ID,{total:0,peak:0,days:0,ac:r.Has_AC||'Unknown'});let h=hs.get(r.Household_ID);h.total+=Number(r.Energy_Consumption_kWh)||0;h.peak+=Number(r.Peak_Hours_Usage_kWh)||0;h.days++});
+ $('householdTable').innerHTML=[...hs.entries()].sort((a,b)=>b[1].total-a[1].total).slice(0,25).map(([id,h])=>`<tr><td>${id}</td><td>${fmt(h.total,1)}</td><td>${fmt(h.total/h.days,2)}</td><td>${fmt(h.peak,1)}</td><td>${h.days}</td><td>${h.ac}</td></tr>`).join('');
+}
+$('applyBtn').addEventListener('click',render);
+$('resetBtn').addEventListener('click',()=>{if(!rawRows.length)return;const dates=rawRows.map(r=>r.Date).filter(Boolean).sort();$('startDate').value=dates[0];$('endDate').value=dates[dates.length-1];$('acFilter').value='All';$('sizeFilter').value='All';render()});
+loadData();
+</script>
+</body></html>
