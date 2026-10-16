@@ -1,0 +1,13 @@
+,Missing values,Missing (%),Distinct values
+Household_ID,0,0.0,12857
+Date,0,0.0,8
+Energy_Consumption_kWh,0,0.0,196
+Household_Size,0,0.0,6
+Avg_Temperature_C,0,0.0,151
+Has_AC,0,0.0,2
+Peak_Hours_Usage_kWh,0,0.0,99
+Month,0,0.0,1
+Day_of_Week,0,0.0,7
+Peak_Usage_Pct,0,0.0,2542
+Energy_per_Person_kWh,0,0.0,483
+Temperature_Category,0,0.0,3
